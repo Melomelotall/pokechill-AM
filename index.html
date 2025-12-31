@@ -97,7 +97,7 @@
         }
         .form-row input:focus { border-color: var(--primary); outline: none; }
         
-        /* --- 自定义联想菜单样式 (新增) --- */
+        /* --- 自定义联想菜单样式 --- */
         .ac-wrapper {
             position: relative;
             flex: 1; 
@@ -343,11 +343,11 @@
         return { text: translated, isAuto: true };
     }
 
-    // --- 3. 自动联想逻辑 (核心修复) ---
+    // --- 3. 自动联想逻辑 ---
     function setupAutocomplete(input, dataSource) {
         const listEl = document.createElement('div');
         listEl.className = 'ac-list';
-        input.parentNode.appendChild(listEl); // 必须添加到 ac-wrapper 中
+        input.parentNode.appendChild(listEl); 
 
         input.addEventListener('input', function() {
             const val = this.value.toLowerCase();
@@ -357,7 +357,6 @@
                 return;
             }
 
-            // 搜索逻辑：匹配开头 或 包含，取前30个结果
             const matches = dataSource.filter(item => 
                 item.toLowerCase().startsWith(val) || item.toLowerCase().includes(val)
             ).slice(0, 30);
@@ -371,7 +370,6 @@
                 const div = document.createElement('div');
                 div.className = 'ac-item';
                 div.textContent = match;
-                // 使用 mousedown 避免 input blur 先触发
                 div.addEventListener('mousedown', function(e) {
                     e.preventDefault(); 
                     input.value = match;
@@ -383,7 +381,6 @@
         });
 
         input.addEventListener('blur', function() {
-            // 稍微延迟关闭以允许点击发生（虽然mousedown处理了，但双重保险）
             setTimeout(() => { listEl.style.display = 'none'; }, 150);
         });
         
@@ -395,18 +392,11 @@
     // --- 4. 初始化与渲染 ---
     const fileInput = document.getElementById('fileInput');
     const mainArea = document.getElementById('mainArea');
-    
-    // Team
     const teamGrid = document.getElementById('teamGrid');
-    
-    // Dex
     const dexGrid = document.getElementById('dexGrid');
     const dexSearchBox = document.getElementById('dexSearchBox');
-
-    // Items
     const itemGrid = document.getElementById('itemGrid');
     const itemSearchBox = document.getElementById('itemSearchBox');
-    
     const saveBtn = document.getElementById('saveBtn');
     const errorMsg = document.getElementById('errorMsg');
     
@@ -432,13 +422,9 @@
 
                 Object.keys(jsonData).forEach(key => {
                     const val = jsonData[key];
-                    
-                    // 提取 Item
                     if (val && typeof val === 'object' && val.hasOwnProperty('got')) {
                         itemSet.add(key);
                     }
-                    
-                    // 提取 Pokemon 相关的 ID, Ability, Moves
                     if (val && typeof val === 'object' && (val.movepool || (val.caught !== undefined && !val.got))) {
                         pkmnSet.add(key);
                         if (val.ability) abilitySet.add(val.ability);
@@ -453,7 +439,7 @@
                 searchDB.moves = Array.from(moveSet).sort();
 
                 renderTeam();
-                renderDex(); // Initial render for Dex
+                renderDex();
                 renderItems();
                 mainArea.style.display = 'block';
             } catch(err) { 
@@ -465,7 +451,7 @@
         reader.readAsText(file);
     });
 
-    // --- Render Team (Updated for Mobile Autocomplete) ---
+    // --- Render Team (Updated: Learn All) ---
     function renderTeam() {
         teamGrid.innerHTML = '';
         const previewData = jsonData.saved.previewTeams[activePreviewKey];
@@ -496,7 +482,6 @@
             card.className = 'pkmn-card';
             card.dataset.slotKey = slotKey; 
             
-            // 使用 .ac-wrapper 包裹 input 并绑定 autocomplete
             card.innerHTML = `
                 <div class="pkmn-header">
                     <span>SLOT ${i}</span>
@@ -539,7 +524,10 @@
                 </div>
 
                 <div class="moves-box">
-                    <div class="moves-title">MOVESET</div>
+                    <div class="moves-title" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>MOVESET</span>
+                        <button type="button" class="learn-all-btn" style="font-size:10px; padding:2px 6px; cursor:pointer; border:1px solid #ccc; background:#fff; border-radius:3px;">Learn All</button>
+                    </div>
                     <div class="form-row"><label>M1</label><div class="ac-wrapper"><input type="text" class="move-1" value="${rootPkmn.moves.slot1 || ''}" autocomplete="off"></div></div>
                     <div class="form-row"><label>M2</label><div class="ac-wrapper"><input type="text" class="move-2" value="${rootPkmn.moves.slot2 || ''}" autocomplete="off"></div></div>
                     <div class="form-row"><label>M3</label><div class="ac-wrapper"><input type="text" class="move-3" value="${rootPkmn.moves.slot3 || ''}" autocomplete="off"></div></div>
@@ -548,11 +536,19 @@
             `;
             teamGrid.appendChild(card);
 
-            // 绑定自动联想功能
+            // Bind Learn All Logic
+            card.querySelector('.learn-all-btn').addEventListener('click', () => {
+                if (!jsonData[speciesId].movepool) jsonData[speciesId].movepool = [];
+                const currentPool = new Set(jsonData[speciesId].movepool);
+                searchDB.moves.forEach(m => currentPool.add(m));
+                jsonData[speciesId].movepool = Array.from(currentPool);
+                alert(`[${speciesId}] Learned all ${searchDB.moves.length} moves!`);
+            });
+
+            // 绑定自动联想
             setupAutocomplete(card.querySelector('.inp-id'), searchDB.pkmn);
             setupAutocomplete(card.querySelector('.inp-item'), searchDB.items);
             setupAutocomplete(card.querySelector('.inp-ability'), searchDB.abilities);
-            
             setupAutocomplete(card.querySelector('.move-1'), searchDB.moves);
             setupAutocomplete(card.querySelector('.move-2'), searchDB.moves);
             setupAutocomplete(card.querySelector('.move-3'), searchDB.moves);
@@ -560,7 +556,7 @@
         }
     }
 
-    // --- Render Dex (Feature kept as is) ---
+    // --- Render Dex (Updated: Learn All) ---
     function renderDex(filter = "") {
         dexGrid.innerHTML = '';
         const keys = Object.keys(jsonData);
@@ -602,8 +598,18 @@
                     <div class="iv-group"><label>D</label><input type="number" class="dex-sdef" value="${ivs.sdef !== undefined ? ivs.sdef : 0}" min="0" max="31"></div>
                     <div class="iv-group"><label>S</label><input type="number" class="dex-spe" value="${ivs.spe !== undefined ? ivs.spe : 0}" min="0" max="31"></div>
                 </div>
+                <button class="dex-learn-all" style="width:100%; margin-top:10px; padding:5px; font-size:11px; cursor:pointer; background:#fff; border:1px solid #ccc; border-radius:4px;">Learn All Moves</button>
             `;
             
+            // Bind Learn All
+            card.querySelector('.dex-learn-all').addEventListener('click', () => {
+                if (!jsonData[speciesId].movepool) jsonData[speciesId].movepool = [];
+                const currentPool = new Set(jsonData[speciesId].movepool);
+                searchDB.moves.forEach(m => currentPool.add(m));
+                jsonData[speciesId].movepool = Array.from(currentPool);
+                alert(`[${speciesId}] Learned all moves!`);
+            });
+
             card.querySelector('.dex-shiny').addEventListener('change', function() {
                 jsonData[speciesId].shiny = this.checked;
             });
@@ -666,7 +672,7 @@
 
     itemSearchBox.addEventListener('input', (e) => renderItems(e.target.value));
 
-    // --- 5. 保存逻辑 ---
+    // --- 5. 保存逻辑 (Ensures empty slot safety) ---
     saveBtn.addEventListener('click', () => {
         if(!jsonData) return;
         
@@ -675,8 +681,12 @@
         cards.forEach(card => {
             const slotKey = card.dataset.slotKey;
             
+            // 安全检查：跳过空槽位
+            const idInput = card.querySelector('.inp-id');
+            if (!idInput) return;
+
             // 获取输入框的值
-            const newId = card.querySelector('.inp-id').value.trim();
+            const newId = idInput.value.trim();
             const newItem = card.querySelector('.inp-item').value.trim();
             const newAbility = card.querySelector('.inp-ability').value.trim();
             const newShiny = card.querySelector('.inp-shiny').checked;
