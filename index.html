@@ -97,6 +97,42 @@
         }
         .form-row input:focus { border-color: var(--primary); outline: none; }
         
+        /* --- 自定义联想菜单样式 (新增) --- */
+        .ac-wrapper {
+            position: relative;
+            flex: 1; 
+        }
+        .ac-wrapper input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .ac-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-top: none;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            border-radius: 0 0 4px 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .ac-item {
+            padding: 8px 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f1f1;
+            font-size: 13px;
+            color: #333;
+        }
+        .ac-item:hover {
+            background-color: #f0f8ff;
+            color: var(--primary);
+        }
+
         /* IV Editor Styles */
         .iv-section-title {
             font-size: 11px;
@@ -239,11 +275,6 @@
     </div>
 
     <div id="mainArea" style="display:none;">
-        <datalist id="allPkmnOptions"></datalist>
-        <datalist id="allItemOptions"></datalist>
-        <datalist id="allAbilityOptions"></datalist>
-        <datalist id="allMoveOptions"></datalist>
-
         <h2>Team Editor (Active Party)</h2>
         <div class="team-grid" id="teamGrid">
             </div>
@@ -264,7 +295,10 @@
 
 <script>
     let jsonData = null;
-    let activePreviewKey = "preview1"; // Default
+    let activePreviewKey = "preview1"; 
+
+    // 用于存储自动补全的数据源
+    let searchDB = { pkmn: [], items: [], abilities: [], moves: [] };
 
     // --- 1. 精准翻译库 ---
     const preciseMap = {
@@ -309,15 +343,58 @@
         return { text: translated, isAuto: true };
     }
 
-    // --- 3. 初始化与渲染 ---
+    // --- 3. 自动联想逻辑 (核心修复) ---
+    function setupAutocomplete(input, dataSource) {
+        const listEl = document.createElement('div');
+        listEl.className = 'ac-list';
+        input.parentNode.appendChild(listEl); // 必须添加到 ac-wrapper 中
+
+        input.addEventListener('input', function() {
+            const val = this.value.toLowerCase();
+            listEl.innerHTML = '';
+            if (!val) {
+                listEl.style.display = 'none';
+                return;
+            }
+
+            // 搜索逻辑：匹配开头 或 包含，取前30个结果
+            const matches = dataSource.filter(item => 
+                item.toLowerCase().startsWith(val) || item.toLowerCase().includes(val)
+            ).slice(0, 30);
+
+            if (matches.length === 0) {
+                listEl.style.display = 'none';
+                return;
+            }
+
+            matches.forEach(match => {
+                const div = document.createElement('div');
+                div.className = 'ac-item';
+                div.textContent = match;
+                // 使用 mousedown 避免 input blur 先触发
+                div.addEventListener('mousedown', function(e) {
+                    e.preventDefault(); 
+                    input.value = match;
+                    listEl.style.display = 'none';
+                });
+                listEl.appendChild(div);
+            });
+            listEl.style.display = 'block';
+        });
+
+        input.addEventListener('blur', function() {
+            // 稍微延迟关闭以允许点击发生（虽然mousedown处理了，但双重保险）
+            setTimeout(() => { listEl.style.display = 'none'; }, 150);
+        });
+        
+        input.addEventListener('focus', function() {
+            if(this.value) this.dispatchEvent(new Event('input'));
+        });
+    }
+
+    // --- 4. 初始化与渲染 ---
     const fileInput = document.getElementById('fileInput');
     const mainArea = document.getElementById('mainArea');
-    
-    // 获取 datalist 元素
-    const allPkmnOptions = document.getElementById('allPkmnOptions'); 
-    const allItemOptions = document.getElementById('allItemOptions');
-    const allAbilityOptions = document.getElementById('allAbilityOptions');
-    const allMoveOptions = document.getElementById('allMoveOptions');
     
     // Team
     const teamGrid = document.getElementById('teamGrid');
@@ -342,17 +419,12 @@
                 jsonData = JSON.parse(ev.target.result);
                 errorMsg.style.display = 'none';
                 
-                // 确定当前使用的队伍配置
                 if (jsonData.saved && jsonData.saved.currentPreviewTeam) {
                     activePreviewKey = jsonData.saved.currentPreviewTeam;
                 }
                 
-                // --- 填充所有自动补全列表 ---
-                allPkmnOptions.innerHTML = '';
-                allItemOptions.innerHTML = '';
-                allAbilityOptions.innerHTML = '';
-                allMoveOptions.innerHTML = '';
-
+                // --- 准备搜索数据 ---
+                searchDB = { pkmn: [], items: [], abilities: [], moves: [] };
                 const pkmnSet = new Set();
                 const itemSet = new Set();
                 const abilitySet = new Set();
@@ -368,44 +440,17 @@
                     
                     // 提取 Pokemon 相关的 ID, Ability, Moves
                     if (val && typeof val === 'object' && (val.movepool || (val.caught !== undefined && !val.got))) {
-                        // Species ID
                         pkmnSet.add(key);
-                        
-                        // Abilities
                         if (val.ability) abilitySet.add(val.ability);
-                        
-                        // Moves (from movepool)
-                        if (Array.isArray(val.movepool)) {
-                            val.movepool.forEach(m => moveSet.add(m));
-                        }
-                        // Moves (from current moves, just in case)
-                        if (val.moves) {
-                            Object.values(val.moves).forEach(m => { if(m) moveSet.add(m); });
-                        }
+                        if (Array.isArray(val.movepool)) val.movepool.forEach(m => moveSet.add(m));
+                        if (val.moves) Object.values(val.moves).forEach(m => { if(m) moveSet.add(m); });
                     }
                 });
 
-                // 将 Set 转换为 options 并添加
-                pkmnSet.forEach(v => {
-                    const opt = document.createElement('option');
-                    opt.value = v;
-                    allPkmnOptions.appendChild(opt);
-                });
-                itemSet.forEach(v => {
-                    const opt = document.createElement('option');
-                    opt.value = v;
-                    allItemOptions.appendChild(opt);
-                });
-                abilitySet.forEach(v => {
-                    const opt = document.createElement('option');
-                    opt.value = v;
-                    allAbilityOptions.appendChild(opt);
-                });
-                moveSet.forEach(v => {
-                    const opt = document.createElement('option');
-                    opt.value = v;
-                    allMoveOptions.appendChild(opt);
-                });
+                searchDB.pkmn = Array.from(pkmnSet).sort();
+                searchDB.items = Array.from(itemSet).sort();
+                searchDB.abilities = Array.from(abilitySet).sort();
+                searchDB.moves = Array.from(moveSet).sort();
 
                 renderTeam();
                 renderDex(); // Initial render for Dex
@@ -420,7 +465,7 @@
         reader.readAsText(file);
     });
 
-    // --- Render Team ---
+    // --- Render Team (Updated for Mobile Autocomplete) ---
     function renderTeam() {
         teamGrid.innerHTML = '';
         const previewData = jsonData.saved.previewTeams[activePreviewKey];
@@ -451,7 +496,7 @@
             card.className = 'pkmn-card';
             card.dataset.slotKey = slotKey; 
             
-            // 这里给 Species, Item, Ability, Moves 都添加了对应的 list 属性
+            // 使用 .ac-wrapper 包裹 input 并绑定 autocomplete
             card.innerHTML = `
                 <div class="pkmn-header">
                     <span>SLOT ${i}</span>
@@ -459,19 +504,30 @@
                         <input type="checkbox" class="inp-shiny" ${rootPkmn.shiny ? 'checked' : ''}> Shiny
                     </label>
                 </div>
+                
                 <div class="form-row">
                     <label>Species</label>
-                    <input type="text" class="inp-id" value="${speciesId}" list="allPkmnOptions">
+                    <div class="ac-wrapper">
+                        <input type="text" class="inp-id" value="${speciesId}" autocomplete="off">
+                    </div>
                 </div>
+                
                 <div class="form-row"><label>Level</label><input type="number" class="inp-level" value="${level}" min="1" max="100"></div>
+                
                 <div class="form-row">
                     <label>Item</label>
-                    <input type="text" class="inp-item" value="${configSlot.item || ''}" list="allItemOptions">
+                    <div class="ac-wrapper">
+                        <input type="text" class="inp-item" value="${configSlot.item || ''}" autocomplete="off">
+                    </div>
                 </div>
+                
                 <div class="form-row">
                     <label>Ability</label>
-                    <input type="text" class="inp-ability" value="${rootPkmn.ability || ''}" list="allAbilityOptions">
+                    <div class="ac-wrapper">
+                        <input type="text" class="inp-ability" value="${rootPkmn.ability || ''}" autocomplete="off">
+                    </div>
                 </div>
+
                 <div class="iv-section-title">IVs</div>
                 <div class="iv-row">
                     <div class="iv-group"><label>HP</label><input type="number" class="iv-hp" value="${ivs.hp !== undefined ? ivs.hp : 31}" min="0" max="31"></div>
@@ -481,27 +537,36 @@
                     <div class="iv-group"><label>SpD</label><input type="number" class="iv-sdef" value="${ivs.sdef !== undefined ? ivs.sdef : 31}" min="0" max="31"></div>
                     <div class="iv-group"><label>Spe</label><input type="number" class="iv-spe" value="${ivs.spe !== undefined ? ivs.spe : 31}" min="0" max="31"></div>
                 </div>
+
                 <div class="moves-box">
                     <div class="moves-title">MOVESET</div>
-                    <div class="form-row"><label>M1</label><input type="text" class="move-1" value="${rootPkmn.moves.slot1 || ''}" list="allMoveOptions"></div>
-                    <div class="form-row"><label>M2</label><input type="text" class="move-2" value="${rootPkmn.moves.slot2 || ''}" list="allMoveOptions"></div>
-                    <div class="form-row"><label>M3</label><input type="text" class="move-3" value="${rootPkmn.moves.slot3 || ''}" list="allMoveOptions"></div>
-                    <div class="form-row"><label>M4</label><input type="text" class="move-4" value="${rootPkmn.moves.slot4 || ''}" list="allMoveOptions"></div>
+                    <div class="form-row"><label>M1</label><div class="ac-wrapper"><input type="text" class="move-1" value="${rootPkmn.moves.slot1 || ''}" autocomplete="off"></div></div>
+                    <div class="form-row"><label>M2</label><div class="ac-wrapper"><input type="text" class="move-2" value="${rootPkmn.moves.slot2 || ''}" autocomplete="off"></div></div>
+                    <div class="form-row"><label>M3</label><div class="ac-wrapper"><input type="text" class="move-3" value="${rootPkmn.moves.slot3 || ''}" autocomplete="off"></div></div>
+                    <div class="form-row"><label>M4</label><div class="ac-wrapper"><input type="text" class="move-4" value="${rootPkmn.moves.slot4 || ''}" autocomplete="off"></div></div>
                 </div>
             `;
             teamGrid.appendChild(card);
+
+            // 绑定自动联想功能
+            setupAutocomplete(card.querySelector('.inp-id'), searchDB.pkmn);
+            setupAutocomplete(card.querySelector('.inp-item'), searchDB.items);
+            setupAutocomplete(card.querySelector('.inp-ability'), searchDB.abilities);
+            
+            setupAutocomplete(card.querySelector('.move-1'), searchDB.moves);
+            setupAutocomplete(card.querySelector('.move-2'), searchDB.moves);
+            setupAutocomplete(card.querySelector('.move-3'), searchDB.moves);
+            setupAutocomplete(card.querySelector('.move-4'), searchDB.moves);
         }
     }
 
-    // --- Render Dex (New Feature) ---
+    // --- Render Dex (Feature kept as is) ---
     function renderDex(filter = "") {
         dexGrid.innerHTML = '';
         const keys = Object.keys(jsonData);
         
-        // 过滤出所有宝可梦数据 (判定标准: 有 caught 属性)
         const pkmnKeys = keys.filter(k => {
             const v = jsonData[k];
-            // 排除系统字段，只保留具体宝可梦对象
             return v && typeof v === 'object' && v.caught === 1;
         });
 
@@ -539,16 +604,12 @@
                 </div>
             `;
             
-            // Bind Events for Dex Card (Auto Update JSON)
-            // 1. Shiny
             card.querySelector('.dex-shiny').addEventListener('change', function() {
                 jsonData[speciesId].shiny = this.checked;
             });
-            // 2. Level
             card.querySelector('.dex-level').addEventListener('input', function() {
                 jsonData[speciesId].level = parseInt(this.value) || 1;
             });
-            // 3. IVs
             const ivInputs = card.querySelectorAll('.iv-row input');
             ivInputs.forEach(inp => {
                 inp.addEventListener('input', function() {
@@ -568,7 +629,6 @@
     }
 
     dexSearchBox.addEventListener('input', (e) => renderDex(e.target.value));
-
 
     // --- Render Items ---
     function renderItems(filter = "") {
@@ -606,12 +666,9 @@
 
     itemSearchBox.addEventListener('input', (e) => renderItems(e.target.value));
 
-    // --- 4. 保存逻辑 ---
+    // --- 5. 保存逻辑 ---
     saveBtn.addEventListener('click', () => {
         if(!jsonData) return;
-
-        // Team Editor 的逻辑需要手动收集，因为可能会修改 ID 导致换怪
-        // Dex 和 Item Editor 的逻辑是直接修改 jsonData 对象的引用，所以不需要这里再收集一遍
         
         const cards = teamGrid.querySelectorAll('.pkmn-card');
         
@@ -676,7 +733,6 @@
             }
         });
 
-        // 导出
         const blob = new Blob([JSON.stringify(jsonData)], {type: "application/json"});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
