@@ -336,30 +336,40 @@
     // 用于存储自动补全的数据源
     let searchDB = { pkmn: [], items: [], abilities: [], moves: [] };
 
-    // --- 0. 静态全技能库 (提取自 1.9 全技能存档) ---
+    // --- 0. 静态全技能库 (已通过 yaoxi.json 扩充) ---
     const FULL_SKILL_LIB = [
-        "accelerock", "acid", "acidArmor", "acidSpray", "acrobatics", "agility", "airShlash", "alluringVoice", "amnesia", "ancientPower", 
-        "aquaJet", "aquaTail", "armThrust", "aromaticMist", "auraSphere", "auroraBeam", "avalanche", "babydollEyes", "barrier", "bite", 
-        "blizzard", "bodyPress", "bounce", "brickBreak", "bubbleBeam", "bugBite", "bugBuzz", "bulkUp", "bulldoze", "bulletPunch", "bulletSeed", 
-        "calmMind", "chargeBeam", "charm", "chillingWater", "closeCombat", "coil", "confuseRay", "confusion", "cottonSpore", "crossPoison", 
-        "crunch", "cut", "darkPulse", "dazzlingGleam", "dig", "disarmingVoice", "discharge", "dizzyPunch", "doubleHit", "doubleSlap", 
-        "dracoMeteor", "dragonBreath", "dragonClaw", "dragonDance", "dragonPulse", "dragonRush", "dragonTail", "drillPeck", "dualChop", 
-        "dualWingbeat", "earthPower", "earthquake", "electricTerrain", "electroWeb", "ember", "energyBall", "extrasensory", "extremeSpeed", 
-        "facade", "fairyWind", "fakeTears", "featherDance", "feintAttack", "fireBlast", "fireFang", "firePunch", "fireSpin", "flameCharge", 
-        "flamethrower", "flareBlitz", "flashCannon", "fly", "focusBlast", "fog", "forcePalm", "frostBreath", "furyCutter", "gigaImpact", 
-        "grassyTerrain", "growl", "gust", "hail", "heatWave", "hex", "honeClaws", "hurricane", "hydroPump", "hyperBeam", "hyperVoice", 
-        "iceBeam", "iceFang", "icePunch", "iceShard", "icicleCrash", "icicleSpear", "icyWind", "incinerate", "infestation", "ironDefense", 
-        "ironHead", "ironTail", "knockOff", "leafBlade", "leafage", "leer", "lick", "liquidation", "lowSweep", "machPunk", "magicalLeaf", 
-        "magnetBomb", "magneticFlux", "magnitude", "metalClaw", "metalSound", "mirrorShot", "mistyTerrain", "mudShot", "mudSlap", "muddyWater", 
-        "nastyPlot", "nightSlash", "nuzzle", "ominousWind", "outrage", "overheat", "peck", "pinMissile", "playNice", "playRough", "poisonFang", 
-        "poisonJab", "poisonPowder", "poisonSting", "pounce", "powderSnow", "powerGem", "powerupPunch", "psybeam", "psychic", "psychoCut", 
-        "pursuit", "quickAttack", "rainDance", "razorLeaf", "rockBlast", "rockPolish", "rockSlide", "rockSmash", "rockThrow", "rollout", 
-        "rototiller", "sandstorm", "scald", "scorchingSands", "screech", "seedBomb", "shadowBall", "shadowClaw", "shadowPunch", "shadowSneak", 
-        "signalBeam", "silverWind", "skyDrop", "sludge", "sludgeBomb", "sludgeWave", "smackDown", "smellingSalts", "smog", "snarl", "solarBeam", 
-        "solarBlade", "spore", "steelWing", "stickyWeb", "stomp", "stoneEdge", "strength", "stringShot", "struggleBug", "stunSpore", "sunnyDay", 
-        "surf", "swagger", "sweetKiss", "swift", "swordsDance", "tackle", "tailwind", "thunder", "thunderFang", "thunderPunch", "thunderShock", 
-        "thunderWave", "thunderbolt", "toxic", "twinBeam", "twineedle", "twister", "vacuumWave", "vineWhip", "waterGun", "waterPulse", 
-        "waterfall", "whirlpool", "willOWisp", "xScissor"
+        "accelerock", "acid", "acidArmor", "acidSpray", "acrobatics", "agility", "airShlash", "alluringVoice", "amnesia", "anchorShot", 
+        "ancientPower", "appleAcid", "aquaJet", "aquaTail", "armThrust", "aromaticMist", "attackOrder", "auraSphere", "auroraBeam", 
+        "avalanche", "babydollEyes", "barrage", "barrier", "beakBlast", "bellyDrum", "bite", "blazeKick", "blizzard", "bodyPress", 
+        "boneRush", "boomburst", "bounce", "braveBird", "brickBreak", "bubbleBeam", "bugBite", "bugBuzz", "bulkUp", "bulldoze", 
+        "bulletPunch", "bulletSeed", "burnUp", "calmMind", "chargeBeam", "charm", "chatter", "chillingWater", "clangingScales", "clamp", 
+        "closeCombat", "coil", "cometPunch", "confuseRay", "confusion", "conversion", "cottonGuard", "cottonSpore", "crossChop", 
+        "crossPoison", "crunch", "cut", "darkPulse", "darkestLariat", "dazzlingGleam", "dig", "disarmingVoice", "discharge", "dizzyPunch", 
+        "doubleHit", "doubleSlap", "dracoMeteor", "dragonBreath", "dragonClaw", "dragonDance", "dragonDarts", "dragonPulse", "dragonRush", 
+        "dragonTail", "drillPeck", "drumBeating", "dualChop", "dualWingbeat", "dynamicPunch", "earthPower", "earthquake", "echoedVoice", 
+        "electricTerrain", "electrify", "electroBall", "electroWeb", "ember", "energyBall", "extrasensory", "extremeSpeed", "facade", 
+        "fairyWind", "fakeTears", "featherDance", "feintAttack", "fieryDance", "fireBlast", "fireFang", "fireLash", "firePunch", "fireSpin", 
+        "flameBurst", "flameCharge", "flamethrower", "flareBlitz", "flashCannon", "floralHealing", "fly", "focusBlast", "fog", "forcePalm", 
+        "forestCurse", "freezeDry", "frenzyPlant", "frostBreath", "furyCutter", "futureSight", "gigaImpact", "grassyTerrain", "growl", 
+        "gust", "hail", "hammerArm", "headCharge", "headlongRush", "heatCrash", "heatWave", "hex", "hiJumpKick", "highHorsepower", 
+        "honeClaws", "howl", "hurricane", "hydroCannon", "hydroPump", "hyperBeam", "hyperDrill", "hyperVoice", "iceBall", "iceBeam", 
+        "iceFang", "icePunch", "iceShard", "icicleCrash", "icicleSpear", "icyWind", "incinerate", "infestation", "ionise", "ironDefense", 
+        "ironHead", "ironTail", "kinesis", "kingsShield", "knockOff", "leafBlade", "leafage", "leer", "lick", "liquidation", "lovelyKiss", 
+        "lowSweep", "machPunk", "magicPowder", "magicalLeaf", "magnetBomb", "magneticFlux", "magnitude", "metalClaw", "metalSound", 
+        "metronome", "mimic", "mirrorShot", "mistyTerrain", "moonblast", "mudShot", "mudSlap", "mudSport", "muddyWater", "mysticalPower", 
+        "nastyPlot", "needleArm", "nightSlash", "nobleRoar", "nuzzle", "ominousWind", "outrage", "overheat", "payDay", "peck", "pinMissile", 
+        "playNice", "playRough", "poisonFang", "poisonJab", "poisonPowder", "poisonSting", "poisonTail", "pounce", "powderSnow", "powerGem", 
+        "powerupPunch", "psybeam", "psychic", "psychoCut", "psyshieldBash", "pursuit", "pyroBall", "quickAttack", "quiverDance", "rageFist", 
+        "rainDance", "razorLeaf", "revelationDance", "rockBlast", "rockPolish", "rockSlide", "rockSmash", "rockThrow", "rockTomb", 
+        "rockWrecker", "rollout", "rototiller", "sandstorm", "scald", "scorchingSands", "screech", "seedBomb", "shadowBall", "shadowClaw", 
+        "shadowPunch", "shadowSneak", "shiftGear", "signalBeam", "silverWind", "sketch", "skyDrop", "skyUppercut", "sludge", "sludgeBomb", 
+        "sludgeWave", "smackDown", "smellingSalts", "smog", "snarl", "snipeShot", "snowscape", "soak", "solarBeam", "solarBlade", 
+        "sparklingAria", "splash", "spore", "steelWing", "stickyWeb", "stomp", "stoneEdge", "stormThrow", "strength", "stringShot", 
+        "struggleBug", "stunSpore", "sunnyDay", "superpower", "surf", "swagger", "sweetKiss", "swift", "swordsDance", "tackle", "tailwind", 
+        "teatime", "thunder", "thunderFang", "thunderPunch", "thunderShock", "thunderWave", "thunderbolt", "toxic", "toxicThread", 
+        "trailblaze", "triAttack", "trickOrTreat", "tripleAxel", "tropKick", "twinBeam", "twineedle", "twister", "vacuumWave", "vCreate", 
+        "venoshock", "vineWhip", "voltTackle", "waterGun", "waterPulse", "waterShuriken", "waterfall", "weatherBall", "whirlpool", 
+        "willOWisp", "xScissor", "zapCannon", "zenHeadbut", "zingZap"
     ];
 
     // --- 1. 精准翻译库 ---
